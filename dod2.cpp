@@ -1,6 +1,9 @@
 #include <pthread.h>
 #include <iostream>
 
+#define C 20
+#define P 10
+
 class MonitorCP {
 private:
     pthread_mutex_t monitor;
@@ -86,20 +89,20 @@ void* pisarz(void* arg) {
 
 int main() {
     MonitorCP monitor;
-    pthread_t czytelnicy[5], pisarze[2];
+    pthread_t czytelnicy[C], pisarze[P];
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < C; i++) {
         pthread_create(&czytelnicy[i], nullptr, czytelnik, &monitor);
     }
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < P; i++) {
         pthread_create(&pisarze[i], nullptr, pisarz, &monitor);
     }
 
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < C; i++) {
         pthread_join(czytelnicy[i], nullptr);
     }
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < P; i++) {
         pthread_join(pisarze[i], nullptr);
     }
 
