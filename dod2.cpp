@@ -74,7 +74,7 @@ public:
 void* czytelnik(void* arg) {
     MonitorCP* monitor = static_cast<MonitorCP*>(arg);
     monitor->poczatek_czytania();
-    std::cout << "Czytelnik: Czytam..." << std::endl;
+    std::cout << "Czytam..." << std::endl;
     monitor->koniec_czytania();
     return nullptr;
 }
@@ -82,7 +82,7 @@ void* czytelnik(void* arg) {
 void* pisarz(void* arg) {
     MonitorCP* monitor = static_cast<MonitorCP*>(arg);
     monitor->poczatek_pisania();
-    std::cout << "Pisarz: Piszę..." << std::endl;
+    std::cout << "Pisze..." << std::endl;
     monitor->koniec_pisania();
     return nullptr;
 }
