@@ -1,91 +1,107 @@
-#include <iostream>
-#include <queue>
 #include <pthread.h>
-#include <unistd.h>
+#include <iostream>
 
-class MonitorPK {
+class MonitorCP {
 private:
-    std::queue<int> bufor;           
-    const size_t maxRozmiar = 10;    
-    pthread_mutex_t mutex;           
-    pthread_cond_t niepusty;         
-    pthread_cond_t niepelny;         
+    pthread_mutex_t monitor;
+    pthread_cond_t mozna_czytac;
+    pthread_cond_t mozna_pisac;
+    int czyta = 0;
+    int pisze = 0;
+    int chce_czytac = 0;
+    int chce_pisac = 0;
 
 public:
-    MonitorPK() {
-        pthread_mutex_init(&mutex, nullptr);
-        pthread_cond_init(&niepusty, nullptr);
-        pthread_cond_init(&niepelny, nullptr);
+    MonitorCP() {
+        pthread_mutex_init(&monitor, nullptr);
+        pthread_cond_init(&mozna_czytac, nullptr);
+        pthread_cond_init(&mozna_pisac, nullptr);
     }
 
-    ~MonitorPK() {
-        pthread_mutex_destroy(&mutex);
-        pthread_cond_destroy(&niepusty);
-        pthread_cond_destroy(&niepelny);
+    ~MonitorCP() {
+        pthread_mutex_destroy(&monitor);
+        pthread_cond_destroy(&mozna_czytac);
+        pthread_cond_destroy(&mozna_pisac);
     }
 
-    void wstaw(int dane) {
-        pthread_mutex_lock(&mutex);
-
-        while (bufor.size() == maxRozmiar) {
-            pthread_cond_wait(&niepelny, &mutex);
+    void poczatek_czytania() {
+        pthread_mutex_lock(&monitor);
+        if (pisze == 1 || chce_pisac > 0) {
+            chce_czytac++;
+            pthread_cond_wait(&mozna_czytac, &monitor);
+            chce_czytac--;
         }
-
-        bufor.push(dane);
-        std::cout << "Producent: Wstawiono " << dane << std::endl;
-
-        pthread_cond_signal(&niepusty);
-        pthread_mutex_unlock(&mutex);
+        czyta++;
+        pthread_cond_signal(&mozna_czytac);
+        pthread_mutex_unlock(&monitor);
     }
 
-    int pobierz() {
-        pthread_mutex_lock(&mutex);
-
-        while (bufor.empty()) {
-            pthread_cond_wait(&niepusty, &mutex);
+    void koniec_czytania() {
+        pthread_mutex_lock(&monitor);
+        czyta--;
+        if (czyta == 0) {
+            pthread_cond_signal(&mozna_pisac);
         }
+        pthread_mutex_unlock(&monitor);
+    }
 
-        int dane = bufor.front();
-        bufor.pop();
-        std::cout << "Konsument: Pobieram " << dane << std::endl;
+    void poczatek_pisania() {
+        pthread_mutex_lock(&monitor);
+        if (czyta > 0 || pisze == 1) {
+            chce_pisac++;
+            pthread_cond_wait(&mozna_pisac, &monitor);
+            chce_pisac--;
+        }
+        pisze = 1;
+        pthread_mutex_unlock(&monitor);
+    }
 
-        pthread_cond_signal(&niepelny);
-        pthread_mutex_unlock(&mutex);
-
-        return dane;
+    void koniec_pisania() {
+        pthread_mutex_lock(&monitor);
+        pisze = 0;
+        if (chce_czytac > 0) {
+            pthread_cond_signal(&mozna_czytac);
+        } else {
+            pthread_cond_signal(&mozna_pisac);
+        }
+        pthread_mutex_unlock(&monitor);
     }
 };
 
-MonitorPK Bufor;
-
-void* producent(void* arg) {
-    int dane = 1;
-    while (true) {
-        Bufor.wstaw(dane);
-        dane++;
-        sleep(1);
-    }
+void* czytelnik(void* arg) {
+    MonitorCP* monitor = static_cast<MonitorCP*>(arg);
+    monitor->poczatek_czytania();
+    std::cout << "Czytelnik: Czytam..." << std::endl;
+    monitor->koniec_czytania();
     return nullptr;
 }
 
-void* konsument(void* arg) {
-    while (true) {
-        int dane = Bufor.pobierz();
-        
-        std::cout << "Konsument: Przetwarzam " << dane << std::endl;
-        sleep(2);
-    }
+void* pisarz(void* arg) {
+    MonitorCP* monitor = static_cast<MonitorCP*>(arg);
+    monitor->poczatek_pisania();
+    std::cout << "Pisarz: Piszę..." << std::endl;
+    monitor->koniec_pisania();
     return nullptr;
 }
 
 int main() {
-    pthread_t thProducent, thKonsument;
+    MonitorCP monitor;
+    pthread_t czytelnicy[5], pisarze[2];
 
-    pthread_create(&thProducent, nullptr, producent, nullptr);
-    pthread_create(&thKonsument, nullptr, konsument, nullptr);
+    for (int i = 0; i < 5; i++) {
+        pthread_create(&czytelnicy[i], nullptr, czytelnik, &monitor);
+    }
 
-    pthread_join(thProducent, nullptr);
-    pthread_join(thKonsument, nullptr);
+    for (int i = 0; i < 2; i++) {
+        pthread_create(&pisarze[i], nullptr, pisarz, &monitor);
+    }
+
+    for (int i = 0; i < 5; i++) {
+        pthread_join(czytelnicy[i], nullptr);
+    }
+    for (int i = 0; i < 2; i++) {
+        pthread_join(pisarze[i], nullptr);
+    }
 
     return 0;
 }
